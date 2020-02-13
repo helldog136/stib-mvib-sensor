@@ -1,57 +1,76 @@
-
 """
 Support for De Lijn (Flemish public transport) information.
 For more info on the API see :
-https://data.delijn.be/
+https://opendata.stib-mivb.be/
 For more details about this platform, please refer to the documentation at
 https://home-assistant.io/components/sensor.XXX --> to do
 """
 import asyncio
 import logging
+import datetime
 
 import voluptuous as vol
+from homeassistant.exceptions import PlatformNotReady
+from pystibmvib import Passages
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pydelijn==0.4.0']
+REQUIREMENTS = ['pystibmvib==0.0.2']
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_NEXT_PASSAGE = 'nextpassage'
-CONF_STOP_ID = 'stop_id'
-CONF_SUB_KEY = 'sub_key'
+CONF_STOPS = 'stops'
+CONF_STOP_NAME = 'stop_name'
+CONF_LANG = 'lang'
+CONF_FILTERED_OUT_STOP_IDS = 'filtered_out_stopids'
+CONF_CLIENT_ID_KEY = 'client_id'
+CONF_CLIENT_SECRET_KEY = 'client_secret'
 CONF_MAX_PASSAGES = 'max_passages'
 
-DEFAULT_NAME = 'De Lijn'
+DEFAULT_NAME = 'STIB/MVIB'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_SUB_KEY): cv.string,
-    vol.Required(CONF_NEXT_PASSAGE): [{
-        vol.Required(CONF_STOP_ID): cv.string,
-        vol.Optional(CONF_MAX_PASSAGES, default=5): cv.positive_int}]
+    vol.Required(CONF_CLIENT_ID_KEY): cv.string,
+    vol.Required(CONF_CLIENT_SECRET_KEY): cv.string,
+    vol.Optional(CONF_LANG, default='fr'): cv.string,
+    vol.Required(CONF_STOPS): [{
+        vol.Required(CONF_STOP_NAME): cv.string,
+        vol.Optional(CONF_FILTERED_OUT_STOP_IDS, default=[]): [cv.positive_int],
+        vol.Optional(CONF_MAX_PASSAGES, default=3): cv.positive_int}]
 })
 
 
 async def async_setup_platform(
         hass, config, async_add_entities, discovery_info=None):
     """Create the sensor."""
-    # from .pydelijn.api import Passages
-    from pydelijn.api import Passages
 
-    sub_key = config.get(CONF_SUB_KEY)
+    client_id = config.get(CONF_CLIENT_ID_KEY)
+    client_secret = config.get(CONF_CLIENT_SECRET_KEY)
+    lang = config.get(CONF_LANG)
     name = DEFAULT_NAME
 
     session = async_get_clientsession(hass)
 
     sensors = []
-    for nextpassage in config.get(CONF_NEXT_PASSAGE):
-        stop_id = nextpassage[CONF_STOP_ID]
-        max_passages = nextpassage[CONF_MAX_PASSAGES]
-        line = Passages(hass.loop, stop_id, max_passages, sub_key, session)
-        sensors.append(DeLijnPublicTransportSensor(line, name))
+    for stop in config.get(CONF_STOPS):
+        # TODO unchecked values and unhandled exceptions... Should add that somwhere (check in python lib and try except here)
+        stop_name = stop[CONF_STOP_NAME]
+        filtered_out = stop[CONF_FILTERED_OUT_STOP_IDS]
+        max_passages = stop[CONF_MAX_PASSAGES]
+        passages = Passages(loop=hass.loop,
+                            stop_name=stop_name,
+                            client_id=client_id,
+                            client_secret=client_secret,
+                            filtered_out_stop_ids=filtered_out,
+                            session=session,
+                            utcoutput=None,
+                            max_passages_per_stop=max_passages,
+                            time_ordered_result=True,
+                            lang=lang)
+        sensors.append(STIBMVIBPublicTransportSensor(passages, stop_name))
 
     tasks = [sensor.async_update() for sensor in sensors]
     if tasks:
@@ -61,36 +80,38 @@ async def async_setup_platform(
 
     async_add_entities(sensors, True)
 
-class DeLijnPublicTransportSensor(Entity):
+
+class STIBMVIBPublicTransportSensor(Entity):
     """Representation of a Ruter sensor."""
 
-    def __init__(self, line, name):
+    def __init__(self, passages, name):
         """Initialize the sensor."""
-        self.line = line
+        self.passages = passages
         self._attributes = {}
         self._name = name
         self._state = None
 
     async def async_update(self):
         """Get the latest data from the De Lijn API."""
-        await self.line.get_passages()
-        if self.line.passages is None:
-            _LOGGER.error("No data recieved from De Lijn.")
+        await self.passages.update_passages(datetime.datetime.now())
+        if self.passages.passages is None:
+            _LOGGER.error("No data recieved from STIB.")
             return
         try:
-            first = self.line.passages[0]
-            self._state = first['due_in_min']
-            self._name = first['stopname']
-            self._attributes['stopname'] = first['stopname']
-            self._attributes['line_number_public'] = first['line_number_public']
-            self._attributes['line_transport_type'] = first['line_transport_type']
-            self._attributes['final_destination'] = first['final_destination']
-            self._attributes['due_at_sch'] = first['due_at_sch']
-            self._attributes['due_at_rt'] = first['due_at_rt']
-            self._attributes['due_in_min'] = first['due_in_min']
-            self._attributes['next_passages'] = self.line.passages
+            first = self.passages.passages[0]
+            self._state = first['arriving_in']['min']
+            self._attributes['destination'] = first['destination']
+            self._attributes['arrival_time'] = first['arrival_time']
+            self._attributes['stop_id'] = first['stop_id']
+            self._attributes['message'] = first['message']
+            self._attributes['arriving_in_min'] = first['arriving_in']['min']
+            self._attributes['arriving_in_sec'] = first['arriving_in']['sec']
+            self._attributes['line_number'] = first['line_number']
+            self._attributes['line_type'] = first['line_type']
+            self._attributes['line_color'] = first['line_color']
+            self._attributes['next_passages'] = self.passages.passages[1:]
         except (KeyError, IndexError) as error:
-            _LOGGER.debug("Error getting data from De Lijn, %s", error)
+            _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
 
     @property
     def name(self):
@@ -105,6 +126,13 @@ class DeLijnPublicTransportSensor(Entity):
     @property
     def icon(self):
         """Return the icon of the sensor."""
+        if self._attributes['line_type'] is not None:
+            if self._attributes['line_type'] == 'B':
+                return 'mdi:bus'
+            if self._attributes['line_type'] == 'M':
+                return 'mdi:subway'
+            if self._attributes['line_type'] == 'T':
+                return 'mdi:tram'
         return 'mdi:bus'
 
     @property
