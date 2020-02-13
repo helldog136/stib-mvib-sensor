@@ -11,15 +11,19 @@ This Project is an adaptation of github.com/bollewolle/delijn-sensor, kudos to h
 | Name | Type | Requirement | Description
 | ---- | ---- | ------- | -----------
 | platform | string | **Required** | `stib-mvib`
-| sub_key | string | **Required** | The subscription key generated in a developer account at opendata.stib-mivb.be.
-| nextpassages | object | **Required** | List of stops to display next passages of.
+| client_id | string | **Required** | The client_id generated in a developer account at opendata.stib-mivb.be.
+| client_secret | string | **Required** | The client_secret generated in a developer account at opendata.stib-mivb.be.
+| lang | string | **Optional** (default:'fr') | The display language of destinations and service messages ('fr' OR 'nl')
+| stops | object | **Required** | List of stops to display next passages of.
 
-## nextpassages object
+## stops object
 
 | Name | Type | Requirement | Description
 | ---- | ---- | ------- | -----------
-| stop_id | string | **Required** | Stop Id to retrieve the next passages of. These can be found by searching a stop here (https://opendata.bruxelles.be/explore/dataset/stib-stops/table/). Ie. 2838 
+| stop_name | string | **Required** | Name of the Stop to retrieve the next passages of. Ie. De Brouckere
+| filtered_out_stop_ids | list | **Optional** | List of specific stop_ids that must NOT be contained inside of the passages. These can be found by searching a stop here (https://opendata.bruxelles.be/explore/dataset/stib-stops/table/).   
 | max_passages | number | **Optional** | Set a maximum number of passages to return in the sensor (maximum is 20 by default).
+
 
 ## Installation
 
@@ -43,14 +47,21 @@ Set up the STIB/MVIB custom sensor.
 ```yaml
 sensor:
   - platform: stib-mvib
-    sub_key: '<put your opendata.stib-mivb.be subscriptionkey here>'
-    nextpassage:
-    - stop_id: '2838'
-      max_passages: 10
-    - stop_id: '6444'
-      max_passages: 5
+    client_id: '<put your opendata.stib-mivb.be client_id here>'
+    client_secret: '<put your opendata.stib-mivb.be client_secret here>'
+    lang: 'fr'
+    stops:
+    - stop_name: 'Scherdemael'
+      filtered_out_stop_ids:
+      - 3733
+      max_passages: 3
+    - stop_name: 'De Brouckere'
+      filtered_out_stop_ids:
+      - 1465
+      - 1820
+      max_passages: 3
 ```
-**_Note_**: replace with the subscription key you generated with you opendata.stib-mivb.be developer account.
+**_Note_**: replace with the client_id/secret you generated with you opendata.stib-mivb.be developer account.
 
 ## Credits
 

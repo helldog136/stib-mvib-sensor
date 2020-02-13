@@ -18,14 +18,14 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==0.0.2']
+REQUIREMENTS = ['pystibmvib==0.0.3']
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_STOPS = 'stops'
 CONF_STOP_NAME = 'stop_name'
 CONF_LANG = 'lang'
-CONF_FILTERED_OUT_STOP_IDS = 'filtered_out_stopids'
+CONF_FILTERED_OUT_STOP_IDS = 'filtered_out_stop_ids'
 CONF_CLIENT_ID_KEY = 'client_id'
 CONF_CLIENT_SECRET_KEY = 'client_secret'
 CONF_MAX_PASSAGES = 'max_passages'
