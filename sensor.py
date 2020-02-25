@@ -105,7 +105,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                             (int(self._attributes['arriving_in_min'])*60 + int(self._attributes['arriving_in_sec']))//2)
         max_delta = max(max_delta, 10)
         delta = now - self._last_update
-        if delta > max_delta: # Here we are making a reconciliation by calling STIB API
+        if delta > max_delta or self._state == 0: # Here we are making a reconciliation by calling STIB API
             self._last_update = now
             self._last_intermediate_update = now
             await self.passages.update_passages(datetime.datetime.now())
@@ -132,8 +132,8 @@ class STIBMVIBPublicTransportSensor(Entity):
             intermediate_delta = now - self._last_intermediate_update
             if intermediate_delta > 60:
                 self._last_intermediate_update = now
-                self._state -= intermediate_delta // 60
-                self._attributes['arriving_in_min'] -= intermediate_delta // 60
+                self._state = max(self._state - intermediate_delta // 60, 0)
+                self._attributes['arriving_in_min'] = max(self._attributes['arriving_in_min'] - intermediate_delta // 60, 0)
 
 
     @property
