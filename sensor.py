@@ -1,5 +1,5 @@
 """
-Support for De Lijn (Flemish public transport) information.
+Support for STIB/MVIB information.
 For more info on the API see :
 https://opendata.stib-mivb.be/
 For more details about this platform, please refer to the documentation at
@@ -18,7 +18,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==0.0.3']
+REQUIREMENTS = ['pystibmvib==0.0.4']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,8 +82,6 @@ async def async_setup_platform(
 
 
 class STIBMVIBPublicTransportSensor(Entity):
-    """Representation of a Ruter sensor."""
-
     def __init__(self, passages, name):
         """Initialize the sensor."""
         self.passages = passages
@@ -92,7 +90,7 @@ class STIBMVIBPublicTransportSensor(Entity):
         self._state = None
 
     async def async_update(self):
-        """Get the latest data from the De Lijn API."""
+        """Get the latest data from the STIB/MVIB API."""
         await self.passages.update_passages(datetime.datetime.now())
         if self.passages.passages is None:
             _LOGGER.error("No data recieved from STIB.")
