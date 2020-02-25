@@ -82,8 +82,6 @@ async def async_setup_platform(
 
 
 class STIBMVIBPublicTransportSensor(Entity):
-    """Representation of a Ruter sensor."""
-
     def __init__(self, passages, name):
         """Initialize the sensor."""
         self.passages = passages
@@ -92,7 +90,7 @@ class STIBMVIBPublicTransportSensor(Entity):
         self._state = None
 
     async def async_update(self):
-        """Get the latest data from the De Lijn API."""
+        """Get the latest data from the STIB/MVIB API."""
         await self.passages.update_passages(datetime.datetime.now())
         if self.passages.passages is None:
             _LOGGER.error("No data recieved from STIB.")

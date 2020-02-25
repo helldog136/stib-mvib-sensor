@@ -1,0 +1,8 @@
+{
+  "domain": "stib-mvib",
+  "name": "STIB/MVIB sensor",
+  "documentation": "https://github.com/helldog136/stib-mvib-sensor",
+  "dependencies": [],
+  "codeowners": ["@helldog136"],
+  "requirements": ["pystibmvib==0.0.4"]
+}
