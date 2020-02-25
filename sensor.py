@@ -19,7 +19,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==0.0.5']
+REQUIREMENTS = ['pystibmvib==0.0.6']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ class STIBMVIBPublicTransportSensor(Entity):
     @property
     def icon(self):
         """Return the icon of the sensor."""
-        if self._attributes['line_type'] is not None:
+        if 'line_type' in self._attributes.keys():
             if self._attributes['line_type'] == 'B':
                 return 'mdi:bus'
             if self._attributes['line_type'] == 'M':
