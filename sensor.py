@@ -38,7 +38,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CLIENT_ID_KEY): cv.string,
     vol.Required(CONF_CLIENT_SECRET_KEY): cv.string,
     vol.Optional(CONF_LANG, default='fr'): cv.string,
-    vol.Optional(CONF_MAX_DELTA_ACTU, default=60): cv.positive_int,
+    vol.Optional(CONF_MAX_DELTA_ACTU, default=90): cv.positive_int,
     vol.Required(CONF_STOPS): [{
         vol.Required(CONF_STOP_NAME): cv.string,
         vol.Optional(CONF_FILTERED_OUT_STOP_IDS, default=[]): [cv.positive_int],
@@ -93,6 +93,7 @@ class STIBMVIBPublicTransportSensor(Entity):
         self._name = self._tech_name
         self._attributes = {"stop_name": self._tech_name}
         self._last_update = 0
+        self._last_intermediate_update = 0
         self._state = None
 
     async def async_update(self):
@@ -103,8 +104,10 @@ class STIBMVIBPublicTransportSensor(Entity):
             max_delta = min(max_delta,
                             (int(self._attributes['arriving_in_min'])*60 + int(self._attributes['arriving_in_sec']))//2)
         max_delta = max(max_delta, 10)
-        if now - self._last_update > max_delta:
+        delta = now - self._last_update
+        if delta > max_delta: # Here we are making a reconciliation by calling STIB API
             self._last_update = now
+            self._last_intermediate_update = now
             await self.passages.update_passages(datetime.datetime.now())
             if self.passages.passages is None:
                 _LOGGER.error("No data recieved from STIB.")
@@ -125,6 +128,13 @@ class STIBMVIBPublicTransportSensor(Entity):
                 self._attributes['next_passages'] = self.passages.passages[1:]
             except (KeyError, IndexError) as error:
                 _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
+        else: # here we update logically the state and arrival in min.
+            intermediate_delta = now - self._last_intermediate_update
+            if intermediate_delta > 60:
+                self._last_intermediate_update = now
+                self._state -= intermediate_delta // 60
+                self._attributes['arriving_in_min'] -= intermediate_delta // 60
+
 
     @property
     def name(self):
