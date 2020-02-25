@@ -126,6 +126,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
                 self._attributes['next_passages'] = self.passages.passages[1:]
+                self._attributes['all_passages'] = self.passages.passages
             except (KeyError, IndexError) as error:
                 _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
         else: # here we update logically the state and arrival in min.
