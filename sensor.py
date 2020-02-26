@@ -41,7 +41,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_DELTA_ACTU, default=90): cv.positive_int,
     vol.Required(CONF_STOPS): [{
         vol.Required(CONF_STOP_NAME): cv.string,
-        vol.Optional(CONF_FILTERED_OUT_STOP_IDS, default=[]): [cv.positive_int],
+        vol.Optional(CONF_FILTERED_OUT_STOP_IDS, default=[]): [cv.string],
         vol.Optional(CONF_MAX_PASSAGES, default=3): cv.positive_int}]
 })
 
