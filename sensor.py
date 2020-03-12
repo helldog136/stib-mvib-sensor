@@ -12,21 +12,21 @@ import time
 
 import voluptuous as vol
 from homeassistant.exceptions import PlatformNotReady
-from pystibmvib import Passages
+from pystibmvib import STIBAPIClient, STIBService
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==0.0.9']
+REQUIREMENTS = ['pystibmvib==1.0.1']
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_STOPS = 'stops'
 CONF_STOP_NAME = 'stop_name'
 CONF_LANG = 'lang'
-CONF_FILTERED_OUT_STOP_IDS = 'filtered_out_stop_ids'
+CONF_LINES_FILTER = 'filtered_out_stop_ids'
 CONF_CLIENT_ID_KEY = 'client_id'
 CONF_CLIENT_SECRET_KEY = 'client_secret'
 CONF_MAX_PASSAGES = 'max_passages'
@@ -41,7 +41,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_DELTA_ACTU, default=90): cv.positive_int,
     vol.Required(CONF_STOPS): [{
         vol.Required(CONF_STOP_NAME): cv.string,
-        vol.Optional(CONF_FILTERED_OUT_STOP_IDS, default=[]): [cv.string],
+        vol.Optional(CONF_LINES_FILTER, default=[]): [(cv.positive_int, cv.string)],
         vol.Optional(CONF_MAX_PASSAGES, default=3): cv.positive_int}]
 })
 
@@ -56,24 +56,18 @@ async def async_setup_platform(
     name = DEFAULT_NAME
 
     session = async_get_clientsession(hass)
+    stib_service = STIBService(STIBAPIClient(loop=hass.loop,
+                                             session=session,
+                                             client_id=client_id,
+                                             client_secret=client_secret))
 
     sensors = []
     for stop in config.get(CONF_STOPS):
         # TODO unchecked values and unhandled exceptions... Should add that somwhere (check in python lib and try except here)
         stop_name = stop[CONF_STOP_NAME]
-        filtered_out = stop[CONF_FILTERED_OUT_STOP_IDS]
+        lines = stop[CONF_LINES_FILTER]
         max_passages = stop[CONF_MAX_PASSAGES]
-        passages = Passages(loop=hass.loop,
-                            stop_name=stop_name,
-                            client_id=client_id,
-                            client_secret=client_secret,
-                            filtered_out_stop_ids=filtered_out,
-                            session=session,
-                            utcoutput=None,
-                            max_passages_per_stop=max_passages,
-                            time_ordered_result=True,
-                            lang=lang)
-        sensors.append(STIBMVIBPublicTransportSensor(passages, stop_name, config.get(CONF_MAX_DELTA_ACTU)))
+        sensors.append(STIBMVIBPublicTransportSensor(lambda now: await stib_service.get_passages(stop_name, lines, max_passages, lang, now), name,  config.get(CONF_MAX_DELTA_ACTU)))
 
     tasks = [sensor.async_update() for sensor in sensors]
     if tasks:
@@ -85,10 +79,11 @@ async def async_setup_platform(
 
 
 class STIBMVIBPublicTransportSensor(Entity):
-    def __init__(self, passages, name, max_time_delta):
+    def __init__(self, service_caller, stop_name, max_time_delta):
         """Initialize the sensor."""
-        self.passages = passages
-        self._tech_name = name
+        self.service_caller = service_caller
+        self.passages = {}
+        self._tech_name = stop_name
         self._max_time_delta = max_time_delta
         self._name = self._tech_name
         self._attributes = {"stop_name": self._tech_name}
@@ -108,12 +103,12 @@ class STIBMVIBPublicTransportSensor(Entity):
         if delta > max_delta or (self._state == 0 and delta > 10): # Here we are making a reconciliation by calling STIB API
             self._last_update = now
             self._last_intermediate_update = now
-            await self.passages.update_passages(datetime.datetime.now())
-            if self.passages.passages is None:
+            self.passages = await self.service_caller(datetime.datetime.now())
+            if self.passages is None:
                 _LOGGER.error("No data recieved from STIB.")
                 return
             try:
-                first = self.passages.passages[0]
+                first = self.passages[0]
                 self._name = f"{self._tech_name} - {first['destination']}"
                 self._state = first['arriving_in']['min']
                 self._attributes['destination'] = first['destination']
@@ -125,8 +120,8 @@ class STIBMVIBPublicTransportSensor(Entity):
                 self._attributes['line_number'] = first['line_number']
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
-                self._attributes['next_passages'] = self.passages.passages[1:]
-                self._attributes['all_passages'] = self.passages.passages
+                self._attributes['next_passages'] = self.passages[1:]
+                self._attributes['all_passages'] = self.passages
             except (KeyError, IndexError) as error:
                 _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
         else: # here we update logically the state and arrival in min.
