@@ -12,14 +12,15 @@ import time
 
 import voluptuous as vol
 from homeassistant.exceptions import PlatformNotReady
-from pystibmvib import STIBAPIClient, STIBService
+from pystibmvib import STIBAPIClient
+from pystibmvib import STIBService
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==1.0.3']
+REQUIREMENTS = ['pystibmvib==1.0.4']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ async def async_setup_platform(
             lines_filter.append((item[CONF_LINE_NR], item[CONF_DESTINATION]))
         max_passages = stop[CONF_MAX_PASSAGES]
         sensors.append(STIBMVIBPublicTransportSensor(
-            service_caller=(lambda now: await stib_service.get_passages(stop_name, lines_filter, max_passages, lang, now)),
+            service_caller=(lambda now: stib_service.get_passages(stop_name, lines_filter, max_passages, lang, now)),
             stop_name=stop_name,
             max_time_delta=config.get(CONF_MAX_DELTA_ACTU)))
 
