@@ -20,7 +20,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==1.0.4']
+REQUIREMENTS = ['pystibmvib==1.0.5']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,8 +77,9 @@ async def async_setup_platform(
             lines_filter.append((item[CONF_LINE_NR], item[CONF_DESTINATION]))
         max_passages = stop[CONF_MAX_PASSAGES]
         sensors.append(STIBMVIBPublicTransportSensor(
-            service_caller=(lambda now: stib_service.get_passages(stop_name, lines_filter, max_passages, lang, now)),
+            stib_service=stib_service,
             stop_name=stop_name,
+            lines_filter=lines_filter, max_passages=max_passages, lang=lang,
             max_time_delta=config.get(CONF_MAX_DELTA_ACTU)))
 
     tasks = [sensor.async_update() for sensor in sensors]
@@ -91,14 +92,18 @@ async def async_setup_platform(
 
 
 class STIBMVIBPublicTransportSensor(Entity):
-    def __init__(self, service_caller, stop_name, max_time_delta):
+    def __init__(self, stib_service, stop_name, lines_filter, max_passages, lang, max_time_delta):
         """Initialize the sensor."""
-        self.service_caller = service_caller
+        self.stib_service = stib_service
+        self.stop_name = stop_name
+        self.lines_filter = lines_filter
+        self.max_passages = max_passages
+        self.lang = lang
         self.passages = {}
         self._tech_name = stop_name
         self._max_time_delta = max_time_delta
-        self._name = self._tech_name
-        self._attributes = {"stop_name": self._tech_name}
+        self._name = stop_name
+        self._attributes = {"stop_name": self._name}
         self._last_update = 0
         self._last_intermediate_update = 0
         self._state = None
@@ -109,39 +114,48 @@ class STIBMVIBPublicTransportSensor(Entity):
         max_delta = self._max_time_delta
         if 'arriving_in_min' in self._attributes.keys() and 'arriving_in_sec' in self._attributes.keys():
             max_delta = min(max_delta,
-                            (int(self._attributes['arriving_in_min'])*60 + int(self._attributes['arriving_in_sec']))//2)
+                            (int(self._attributes['arriving_in_min']) * 60 + int(
+                                self._attributes['arriving_in_sec'])) // 2)
         max_delta = max(max_delta, 10)
         delta = now - self._last_update
-        if delta > max_delta or (self._state == 0 and delta > 10): # Here we are making a reconciliation by calling STIB API
+        if self._state is None \
+            or delta > max_delta \
+            or (self._state == 0 and delta > 10):  # Here we are making a reconciliation by calling STIB API
             self._last_update = now
             self._last_intermediate_update = now
-            self.passages = await self.service_caller(datetime.datetime.now())
+            self.passages = await self.stib_service.get_passages(stop_name=self.stop_name,
+                                                                 line_filters=self.lines_filter,
+                                                                 max_passages=self.max_passages,
+                                                                 lang=self.lang,
+                                                                 now=datetime.datetime.now())
             if self.passages is None:
                 _LOGGER.error("No data recieved from STIB.")
                 return
+            _LOGGER.error("Data recievd from STIB: " + str(self.passages))
             try:
                 first = self.passages[0].to_dict()
                 self._state = first['arriving_in']['min']
                 self._attributes['destination'] = first['destination']
-                self._attributes['arrival_time'] = first['arrival_time']
+                self._attributes['arrival_time'] = first['expectedArrivalTime']
                 self._attributes['stop_id'] = first['stop_id']
                 self._attributes['message'] = first['message']
                 self._attributes['arriving_in_min'] = first['arriving_in']['min']
                 self._attributes['arriving_in_sec'] = first['arriving_in']['sec']
-                self._attributes['line_number'] = first['line_number']
+                self._attributes['line_number'] = first['lineId']
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
                 self._attributes['next_passages'] = self.passages[1:]
                 self._attributes['all_passages'] = self.passages
+
             except (KeyError, IndexError) as error:
                 _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
-        else: # here we update logically the state and arrival in min.
+        else:  # here we update logically the state and arrival in min.
             intermediate_delta = now - self._last_intermediate_update
             if intermediate_delta > 60:
                 self._last_intermediate_update = now
                 self._state = max(self._state - intermediate_delta // 60, 0)
-                self._attributes['arriving_in_min'] = max(self._attributes['arriving_in_min'] - intermediate_delta // 60, 0)
-
+                self._attributes['arriving_in_min'] = max(
+                    self._attributes['arriving_in_min'] - intermediate_delta // 60, 0)
 
     @property
     def name(self):
