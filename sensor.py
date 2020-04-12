@@ -19,10 +19,13 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.const import ATTR_ATTRIBUTION, DEVICE_CLASS_TIMESTAMP
 
 REQUIREMENTS = ['pystibmvib==1.0.5']
 
 _LOGGER = logging.getLogger(__name__)
+
+ATTRIBUTION = "Data provided by opendata.stib-mivb.be"
 
 CONF_STOPS = 'stops'
 CONF_STOP_NAME = 'stop_name'
@@ -94,16 +97,18 @@ async def async_setup_platform(
 class STIBMVIBPublicTransportSensor(Entity):
     def __init__(self, stib_service, stop_name, lines_filter, max_passages, lang, max_time_delta):
         """Initialize the sensor."""
+        self._available = False
         self.stib_service = stib_service
         self.stop_name = stop_name
         self.lines_filter = lines_filter
         self.max_passages = max_passages
         self.lang = lang
         self.passages = {}
-        self._tech_name = stop_name
+        self._tech_name = stop_name + str(lines_filter)
         self._max_time_delta = max_time_delta
         self._name = stop_name
-        self._attributes = {"stop_name": self._name}
+        self._attributes = {"stop_name": self._name,
+                            ATTR_ATTRIBUTION: ATTRIBUTION}
         self._last_update = 0
         self._last_intermediate_update = 0
         self._state = None
@@ -119,8 +124,8 @@ class STIBMVIBPublicTransportSensor(Entity):
         max_delta = max(max_delta, 10)
         delta = now - self._last_update
         if self._state is None \
-            or delta > max_delta \
-            or (self._state == 0 and delta > 10):  # Here we are making a reconciliation by calling STIB API
+                or delta > max_delta \
+                or (self._state == 0 and delta > 10):  # Here we are making a reconciliation by calling STIB API
             self._last_update = now
             self._last_intermediate_update = now
             self.passages = await self.stib_service.get_passages(stop_name=self.stop_name,
@@ -130,42 +135,34 @@ class STIBMVIBPublicTransportSensor(Entity):
                                                                  now=datetime.datetime.now())
             if self.passages is None:
                 _LOGGER.error("No data recieved from STIB.")
+                self._available = False
                 return
-            _LOGGER.error("Data recievd from STIB: " + str(self.passages))
+            _LOGGER.info("Data recieved from STIB: " + str(self.passages))
             try:
                 first = self.passages[0].to_dict()
-                self._state = first['arriving_in']['min']
+                self._state = int(first['arriving_in']['min'])
                 self._attributes['destination'] = first['destination']
                 self._attributes['arrival_time'] = first['expectedArrivalTime']
                 self._attributes['stop_id'] = first['stop_id']
                 self._attributes['message'] = first['message']
-                self._attributes['arriving_in_min'] = first['arriving_in']['min']
-                self._attributes['arriving_in_sec'] = first['arriving_in']['sec']
+                self._attributes['arriving_in_min'] = int(first['arriving_in']['min'])
+                self._attributes['arriving_in_sec'] = int(first['arriving_in']['sec'])
                 self._attributes['line_number'] = first['lineId']
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
-                self._attributes['next_passages'] = self.passages[1:]
+                # self._attributes['next_passages'] = self.passages[1:]
                 self._attributes['all_passages'] = self.passages
-
+                self._available = True
             except (KeyError, IndexError) as error:
-                _LOGGER.debug("Error getting data from STIB/MVIB, %s", error)
-        else:  # here we update logically the state and arrival in min.
+                _LOGGER.error("Error getting data from STIB/MVIB, %s", error)
+                self._available = False
+        else:  # here we update logically the state and arrival in min. (this prevents too many calls to API)
             intermediate_delta = now - self._last_intermediate_update
             if intermediate_delta > 60:
                 self._last_intermediate_update = now
-                self._state = max(self._state - intermediate_delta // 60, 0)
-                self._attributes['arriving_in_min'] = max(
-                    self._attributes['arriving_in_min'] - intermediate_delta // 60, 0)
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._tech_name
-
-    @property
-    def friendly_name(self):
-        """Return the friendly_name of the sensor."""
-        return self._name
+                self._state = int(max(self._state - intermediate_delta // 60, 0))
+                self._attributes['arriving_in_min'] = int(max(
+                    self._attributes['arriving_in_min'] - intermediate_delta // 60, 0))
 
     @property
     def state(self):
@@ -183,6 +180,21 @@ class STIBMVIBPublicTransportSensor(Entity):
             if self._attributes['line_type'] == 'T':
                 return 'mdi:tram'
         return 'mdi:bus'
+
+    @property
+    def available(self):
+        """Return True if entity is available."""
+        return self._available
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return DEVICE_CLASS_TIMESTAMP
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
 
     @property
     def device_state_attributes(self):
