@@ -52,13 +52,16 @@ sensor:
     lang: 'fr'
     stops:
     - stop_name: 'Scherdemael'
-      filtered_out_stop_ids:
-      - 3733
-      max_passages: 3
+      line_filter:
+      - line_nr: 46
+        destination: 'GLIBERT'
+      max_passages: 5
     - stop_name: 'De Brouckere'
-      filtered_out_stop_ids:
-      - 1465
-      - 1820
+      line_filter:
+      - line_nr: 5
+        destination: 'ERASME'
+      - line_nr: 81
+        destination: 'MARIUS RENARD'
       max_passages: 3
 ```
 **_Note_**: replace with the client_id/secret you generated with you opendata.stib-mivb.be developer account.

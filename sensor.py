@@ -19,14 +19,16 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-REQUIREMENTS = ['pystibmvib==1.0.1']
+REQUIREMENTS = ['pystibmvib==1.0.3']
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_STOPS = 'stops'
 CONF_STOP_NAME = 'stop_name'
 CONF_LANG = 'lang'
-CONF_LINES_FILTER = 'filtered_out_stop_ids'
+CONF_LINE_FILTER = 'line_filter'
+CONF_LINE_NR = 'line_nr'
+CONF_DESTINATION = 'destination'
 CONF_CLIENT_ID_KEY = 'client_id'
 CONF_CLIENT_SECRET_KEY = 'client_secret'
 CONF_MAX_PASSAGES = 'max_passages'
@@ -41,7 +43,12 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_DELTA_ACTU, default=90): cv.positive_int,
     vol.Required(CONF_STOPS): [{
         vol.Required(CONF_STOP_NAME): cv.string,
-        vol.Optional(CONF_LINES_FILTER, default=[]): [(cv.positive_int, cv.string)],
+        vol.Optional(CONF_LINE_FILTER, default=[]): [
+            {
+                vol.Required(CONF_LINE_NR): cv.positive_int,
+                vol.Required(CONF_DESTINATION): cv.string
+            }
+        ],
         vol.Optional(CONF_MAX_PASSAGES, default=3): cv.positive_int}]
 })
 
@@ -53,7 +60,6 @@ async def async_setup_platform(
     client_id = config.get(CONF_CLIENT_ID_KEY)
     client_secret = config.get(CONF_CLIENT_SECRET_KEY)
     lang = config.get(CONF_LANG)
-    name = DEFAULT_NAME
 
     session = async_get_clientsession(hass)
     stib_service = STIBService(STIBAPIClient(loop=hass.loop,
@@ -65,9 +71,14 @@ async def async_setup_platform(
     for stop in config.get(CONF_STOPS):
         # TODO unchecked values and unhandled exceptions... Should add that somwhere (check in python lib and try except here)
         stop_name = stop[CONF_STOP_NAME]
-        lines = stop[CONF_LINES_FILTER]
+        lines_filter = []
+        for item in stop[CONF_LINE_FILTER]:
+            lines_filter.append((item[CONF_LINE_NR], item[CONF_DESTINATION]))
         max_passages = stop[CONF_MAX_PASSAGES]
-        sensors.append(STIBMVIBPublicTransportSensor(lambda now: await stib_service.get_passages(stop_name, lines, max_passages, lang, now), name,  config.get(CONF_MAX_DELTA_ACTU)))
+        sensors.append(STIBMVIBPublicTransportSensor(
+            service_caller=(lambda now: await stib_service.get_passages(stop_name, lines_filter, max_passages, lang, now)),
+            stop_name=stop_name,
+            max_time_delta=config.get(CONF_MAX_DELTA_ACTU)))
 
     tasks = [sensor.async_update() for sensor in sensors]
     if tasks:
@@ -108,8 +119,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                 _LOGGER.error("No data recieved from STIB.")
                 return
             try:
-                first = self.passages[0]
-                self._name = f"{self._tech_name} - {first['destination']}"
+                first = self.passages[0].to_dict()
                 self._state = first['arriving_in']['min']
                 self._attributes['destination'] = first['destination']
                 self._attributes['arrival_time'] = first['arrival_time']
