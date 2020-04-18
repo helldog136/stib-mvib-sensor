@@ -19,7 +19,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.const import ATTR_ATTRIBUTION, DEVICE_CLASS_TIMESTAMP
+from homeassistant.const import ATTR_ATTRIBUTION
 
 
 REQUIREMENTS = ['pystibmvib==1.1.0']
@@ -188,9 +188,11 @@ class STIBMVIBPublicTransportSensor(Entity):
         return self._available
 
     @property
-    def device_class(self):
-        """Return the device class."""
-        return DEVICE_CLASS_TIMESTAMP
+    def unit_of_measurement(self):
+        """Return the unit this state is expressed in."""
+        if self._state == 1:
+            return "min"
+        return "mins"
 
     @property
     def name(self):
