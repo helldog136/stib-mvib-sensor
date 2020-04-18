@@ -21,6 +21,7 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import ATTR_ATTRIBUTION, DEVICE_CLASS_TIMESTAMP
 
+
 REQUIREMENTS = ['pystibmvib==1.0.5']
 
 _LOGGER = logging.getLogger(__name__)
