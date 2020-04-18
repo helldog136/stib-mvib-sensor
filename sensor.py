@@ -22,7 +22,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import ATTR_ATTRIBUTION, DEVICE_CLASS_TIMESTAMP
 
 
-REQUIREMENTS = ['pystibmvib==1.0.5']
+REQUIREMENTS = ['pystibmvib==1.1.0']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -140,18 +140,18 @@ class STIBMVIBPublicTransportSensor(Entity):
                 return
             _LOGGER.info("Data recieved from STIB: " + str(self.passages))
             try:
-                first = self.passages[0].to_dict()
+                first = self.passages[0]
                 self._state = int(first['arriving_in']['min'])
                 self._attributes['destination'] = first['destination']
-                self._attributes['arrival_time'] = first['expectedArrivalTime']
+                self._attributes['arrival_time'] = first['expected_arrival_time']
                 self._attributes['stop_id'] = first['stop_id']
                 self._attributes['message'] = first['message']
                 self._attributes['arriving_in_min'] = int(first['arriving_in']['min'])
                 self._attributes['arriving_in_sec'] = int(first['arriving_in']['sec'])
-                self._attributes['line_number'] = first['lineId']
+                self._attributes['line_number'] = first['line_id']
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
-                # self._attributes['next_passages'] = self.passages[1:]
+                self._attributes['next_passages'] = self.passages[1:]
                 self._attributes['all_passages'] = self.passages
                 self._available = True
             except (KeyError, IndexError) as error:
