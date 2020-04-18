@@ -3,5 +3,5 @@
   "name": "STIB/MVIB sensor",
   "documentation": "https://github.com/helldog136/stib-mvib-sensor",
   "codeowners": ["@helldog136"],
-  "requirements": ["pystibmvib==1.0.5"]
+  "requirements": ["pystibmvib==1.1.0"]
 }
