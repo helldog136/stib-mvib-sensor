@@ -150,12 +150,12 @@ class STIBMVIBPublicTransportSensor(Entity):
                 first = self.passages[0]
                 self._state = int(first['arriving_in']['min'])
                 self._attributes['destination'] = first['destination']
-                self._attributes['arrival_time'] = first['expected_arrival_time']
+                self._attributes['expected_arrival_time'] = first['expected_arrival_time']
                 self._attributes['stop_id'] = first['stop_id']
                 self._attributes['message'] = first['message']
                 self._attributes['arriving_in_min'] = int(first['arriving_in']['min'])
                 self._attributes['arriving_in_sec'] = int(first['arriving_in']['sec'])
-                self._attributes['line_number'] = first['line_id']
+                self._attributes['line_id'] = first['line_id']
                 self._attributes['line_type'] = first['line_type']
                 self._attributes['line_color'] = first['line_color']
                 self._attributes['next_passages'] = self.passages[1:]
