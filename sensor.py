@@ -28,6 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ATTRIBUTION = "Data provided by opendata.stib-mivb.be"
 
+CONF_SENSOR_UNAME = 'sensor_name'
 CONF_STOPS = 'stops'
 CONF_STOP_NAME = 'stop_name'
 CONF_LANG = 'lang'
@@ -47,6 +48,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_LANG, default='fr'): cv.string,
     vol.Optional(CONF_MAX_DELTA_ACTU, default=90): cv.positive_int,
     vol.Required(CONF_STOPS): [{
+        vol.Optional(CONF_SENSOR_UNAME, default=""): cv.string,
         vol.Required(CONF_STOP_NAME): cv.string,
         vol.Optional(CONF_LINE_FILTER, default=[]): [
             {
@@ -75,6 +77,7 @@ async def async_setup_platform(
     sensors = []
     for stop in config.get(CONF_STOPS):
         # TODO unchecked values and unhandled exceptions... Should add that somwhere (check in python lib and try except here)
+        sensor_name = stop[CONF_SENSOR_UNAME]
         stop_name = stop[CONF_STOP_NAME]
         lines_filter = []
         for item in stop[CONF_LINE_FILTER]:
@@ -82,6 +85,7 @@ async def async_setup_platform(
         max_passages = stop[CONF_MAX_PASSAGES]
         sensors.append(STIBMVIBPublicTransportSensor(
             stib_service=stib_service,
+            sensor_name=sensor_name,
             stop_name=stop_name,
             lines_filter=lines_filter, max_passages=max_passages, lang=lang,
             max_time_delta=config.get(CONF_MAX_DELTA_ACTU)))
@@ -96,10 +100,13 @@ async def async_setup_platform(
 
 
 class STIBMVIBPublicTransportSensor(Entity):
-    def __init__(self, stib_service, stop_name, lines_filter, max_passages, lang, max_time_delta):
+    def __init__(self, stib_service, sensor_name, stop_name, lines_filter, max_passages, lang, max_time_delta):
         """Initialize the sensor."""
         self._available = False
         self.stib_service = stib_service
+        self._sensor_name = sensor_name
+        if self._sensor_name is None or sensor_name == "":
+            self._sensor_name = stop_name
         self.stop_name = stop_name
         self.lines_filter = lines_filter
         self.max_passages = max_passages
@@ -197,7 +204,7 @@ class STIBMVIBPublicTransportSensor(Entity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return self._name
+        return self._sensor_name
 
     @property
     def device_state_attributes(self):
