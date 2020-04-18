@@ -21,7 +21,6 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import ATTR_ATTRIBUTION
 
-
 REQUIREMENTS = ['pystibmvib==1.1.0']
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,7 +92,7 @@ async def async_setup_platform(
     tasks = [sensor.async_update() for sensor in sensors]
     if tasks:
         await asyncio.wait(tasks)
-    if not all(sensor._attributes for sensor in sensors):
+    if not all(sensor.available for sensor in sensors):
         raise PlatformNotReady
 
     async_add_entities(sensors, True)
@@ -103,6 +102,7 @@ class STIBMVIBPublicTransportSensor(Entity):
     def __init__(self, stib_service, sensor_name, stop_name, lines_filter, max_passages, lang, max_time_delta):
         """Initialize the sensor."""
         self._available = False
+        self._assumed_state = False
         self.stib_service = stib_service
         self._sensor_name = sensor_name
         if self._sensor_name is None or sensor_name == "":
@@ -160,6 +160,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                 self._attributes['line_color'] = first['line_color']
                 self._attributes['next_passages'] = self.passages[1:]
                 self._attributes['all_passages'] = self.passages
+                self._assumed_state = False
                 self._available = True
             except (KeyError, IndexError) as error:
                 _LOGGER.error("Error getting data from STIB/MVIB, %s", error)
@@ -171,6 +172,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                 self._state = int(max(self._state - intermediate_delta // 60, 0))
                 self._attributes['arriving_in_min'] = int(max(
                     self._attributes['arriving_in_min'] - intermediate_delta // 60, 0))
+                self._assumed_state = True
 
     @property
     def state(self):
@@ -202,6 +204,11 @@ class STIBMVIBPublicTransportSensor(Entity):
         return "mins"
 
     @property
+    def assumed_state(self):
+        """Return True if the state is based on our assumption instead of reading it from the device."""
+        return self._assumed_state
+
+    @property
     def name(self):
         """Return the name of the sensor."""
         return self._sensor_name
@@ -210,3 +217,7 @@ class STIBMVIBPublicTransportSensor(Entity):
     def device_state_attributes(self):
         """Return attributes for the sensor."""
         return self._attributes
+
+    @property
+    def unique_id(self):
+        return self.stop_name + "_" + hash(str(self.lines_filter))
