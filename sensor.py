@@ -21,7 +21,7 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import ATTR_ATTRIBUTION
 
-REQUIREMENTS = ['pystibmvib==1.1.3']
+REQUIREMENTS = ['pystibmvib==1.1.4']
 SCAN_INTERVAL = datetime.timedelta(minutes=1)
 _LOGGER = logging.getLogger(__name__)
 
