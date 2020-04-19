@@ -22,7 +22,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.const import ATTR_ATTRIBUTION
 
 REQUIREMENTS = ['pystibmvib==1.1.4']
-SCAN_INTERVAL = datetime.timedelta(minutes=1)
+SCAN_INTERVAL = datetime.timedelta(seconds=15)
 _LOGGER = logging.getLogger(__name__)
 
 ATTRIBUTION = "Data provided by opendata.stib-mivb.be"
@@ -142,7 +142,7 @@ class STIBMVIBPublicTransportSensor(Entity):
                                                                      lang=self.lang,
                                                                      now=datetime.datetime.now())
             except Exception as e:
-                _LOGGER.error("Error while retrieving data from STIB." + str(e))
+                _LOGGER.error("Error while retrieving data from STIB. " + str(e))
                 self._available = False
                 return
             if self.passages is None:
@@ -231,4 +231,4 @@ class STIBMVIBPublicTransportSensor(Entity):
 
     @property
     def unique_id(self):
-        return self.stop_name + "_" + hash(str(self.lines_filter))
+        return self.stop_name + "_" + str(hash(str(self.lines_filter)))
